@@ -25,8 +25,3 @@
 1. Set up PostgreSQL with `schema.sql`
 2. Run notebook cells sequentially
 3. Model achieves 99% accuracy on test set
-
-**Next steps**:
-- Binary classification (normal vs attack)
-- Flask API for real-time prediction
-- Complex queries, triggers, views
