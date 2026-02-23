@@ -4,8 +4,6 @@
 
 **Team**: Aayushmaan Chakraborty & Shashank Prasad
 
-**Date**: February 2026
-
 This project implements a **machine learning-based network intrusion detection system** using the **NSL-KDD dataset** and **PostgreSQL** database.
 
 ## Project Overview
@@ -28,6 +26,7 @@ This project implements a **machine learning-based network intrusion detection s
 | `confusion_matrix.png`      | Model performance visualization                                                          |
 | `classification_report.txt` | Detailed metrics                                                                         |
 | `Inrustion_Detection.pkl`   | Trained Random Forest model (saved with joblib) – ready for prediction                   |
+
 **Note**: Large data files (`KDDTrain+.txt`) are ignored via `.gitignore` — download from [Kaggle NSL-KDD](https://www.kaggle.com/datasets/hassan06/nslkdd) or [UNB site](https://www.unb.ca/cic/datasets/nsl.html) to reproduce.
 
 ## Tech Stack
