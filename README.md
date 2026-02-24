@@ -25,7 +25,7 @@ This project implements a **machine learning-based network intrusion detection s
 | `KDDTrain+.txt`             | Raw NSL-KDD training dataset (do NOT commit large data files to GitHub)                  |
 | `confusion_matrix.png`      | Model performance visualization                                                          |
 | `classification_report.txt` | Detailed metrics                                                                         |
-| `Inrustion_Detection.pkl`   | Trained Random Forest model (saved with joblib) – ready for prediction                   |
+| `inrustion_model.pkl`   | Trained Random Forest model (saved with joblib) – ready for prediction                   |
 
 **Note**: Large data files (`KDDTrain+.txt`) are ignored via `.gitignore` — download from [Kaggle NSL-KDD](https://www.kaggle.com/datasets/hassan06/nslkdd) or [UNB site](https://www.unb.ca/cic/datasets/nsl.html) to reproduce.
 
