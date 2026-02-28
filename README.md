@@ -4,70 +4,66 @@
 
 **Team**: Aayushmaan Chakraborty & Shashank Prasad
 
-This project implements a **machine learning-based network intrusion detection system** using the **NSL-KDD dataset** and **PostgreSQL** database.
+This project implements a **machine learning-based network intrusion detection system** using the **NSL-KDD dataset** and **PostgreSQL** database. The system is designed to classify network connections as either **Normal** or **Intrusion** with high precision and robust generalization.
 
-## Project Overview
+## 🚀 Key Features
 
-- Loads and cleans the NSL-KDD dataset (~125k records)
-- Stores data in a normalized PostgreSQL database (18-column `connections` table)
-- Maps categorical features (protocol, service, flag, attack) to lookup IDs
-- Trains a Random Forest classifier → **99% accuracy** on test set
-- Generates evaluation visuals (confusion matrix) and metrics
+- **Binary Classification**: Optimized to distinguish between legitimate traffic and diverse attack vectors.
+- **Leakage Prevention**: Robust feature selection that eliminates data leakage (e.g., removing `difficulty_level`), ensuring the model learns actual network patterns.
+- **Normalized DBMS**: Stores data in a PostgreSQL database with lookup tables for protocols, services, flags, and attacks.
+- **Synthetic Evaluation Suite**: Includes a set of 10 diverse synthetic test cases (DoS, R2L, Probing, etc.) using class-specific baselines to verify model generalization.
+- **Unix Domain Socket Support**: Seamless database integration using local OS-level authentication.
 
-## Repository Contents
+## 📁 Repository Contents
 
-| File                        | Description                                                                              |
-|-----------------------------|------------------------------------------------------------------------------------------|
-| `Intrusion_Detection.ipynb` | Main Jupyter notebook: data loading, cleaning, DB insertion, model training & evaluation |
-| `schema.sql`                | PostgreSQL schema (lookup tables + trimmed `connections` table)                          |
-| `ER_diagram.png`            | Entity-Relationship diagram of the database schema                                       |
-| `relational_table.png`      | Relational schema diagram (tables + relationships)                                       |
-| `KDDTrain+.txt`             | Raw NSL-KDD training dataset (do NOT commit large data files to GitHub)                  |
-| `confusion_matrix.png`      | Model performance visualization                                                          |
-| `classification_report.txt` | Detailed metrics                                                                         |
-| `inrustion_model.pkl`   | Trained Random Forest model (saved with joblib) – ready for prediction                   |
+| File | Description |
+| :--- | :--- |
+| `ML-Based-Network-Intrusion-Detection-System-/Intrusion_Detection.ipynb` | Main Jupyter notebook: data processing, DB insertion, model training & refined evaluation. |
+| `schema.sql` | PostgreSQL schema (lookup tables + normalized `connections` table). |
+| `populate_db.py` | Python script to populate the PostgreSQL database from raw NSL-KDD data. |
+| `ML-Based-Network-Intrusion-Detection-System-/intrusion_model.pkl` | Trained Random Forest model (saved with joblib). |
+| `ML-Based-Network-Intrusion-Detection-System-/classification_report.txt` | Detailed metrics from the latest model run. |
+| `requirements.txt` | Project dependencies. |
 
-**Note**: Large data files (`KDDTrain+.txt`) are ignored via `.gitignore` — download from [Kaggle NSL-KDD](https://www.kaggle.com/datasets/hassan06/nslkdd) or [UNB site](https://www.unb.ca/cic/datasets/nsl.html) to reproduce.
+## 🛠 Tech Stack
 
-## Tech Stack
+- **Database**: PostgreSQL (via SQLAlchemy)
+- **Language**: Python 3.11+
+- **Machine Learning**: Scikit-learn (RandomForestClassifier)
+- **Data Analysis**: Pandas, NumPy
+- **Visualization**: Matplotlib, Seaborn
 
-- **Database**: PostgreSQL
-- **Language**: Python 3
-- **Libraries**: pandas, sqlalchemy, scikit-learn, matplotlib, seaborn, tqdm
-- **Dataset**: NSL-KDD (KDDTrain+.txt)
-
-## How to Reproduce
+## ⚙️ How to Reproduce
 
 1. **Set up PostgreSQL**
-   - Create database: `intrusion_db`
-   - Run `schema.sql` to create tables
+   - Create a local database named `intrusion_db`.
+   - Ensure your PostgreSQL server is running and accessible via Unix domain sockets.
 
-2. **Install dependencies**
+2. **Install Dependencies**
    ```bash
-   pip install pandas sqlalchemy psycopg2-binary scikit-learn matplotlib seaborn tqdm
+   pip install -r requirements.txt
+   ```
 
-3. **Download dataset**  
-  - Place KDDTrain+.txt in the project folder (or update CSV_PATH in notebook)
+3. **Populate Database**
+   - Ensure `KDDTrain+.txt` is in the `ML-Based-Network-Intrusion-Detection-System-/` directory.
+   - Run the population logic in the notebook or via a standalone script to load the ~125k records into PostgreSQL.
 
-4. **Run notebook**  
-  - Open Intrusion_Detection.ipynb
-  - Update DB_PASS (and path if needed)
-  - Run all cells sequentially
+4. **Run the Model**
+   - Open `ML-Based-Network-Intrusion-Detection-System-/Intrusion_Detection.ipynb`.
+   - The notebook connects automatically to `intrusion_db` via the current OS user.
+   - Run all cells to train the model and see the **Section 9: Synthetic Data Evaluation** results.
 
-5. **Expected Output**  
-  - ~125k rows loaded
-  - ~80k rows inserted after cleaning/mapping
-  - Random Forest accuracy: ~99%
+## 📊 Results Overview
 
+- **Training Accuracy**: ~99.8% on the NSL-KDD test split.
+- **Generalization**: The model successfully identifies **80%** of synthetic attack scenarios (unseen patterns) correctly, showing high reliability across DoS and Probing attacks.
+- **Primary Indicators**: Feature importance analysis shows `src_bytes`, `flag_id`, and `dst_host_srv_count` as the most critical features for detection.
 
-## Results  
-  - Model: Random Forest Classifier (n_estimators=100)
-  - Accuracy: 99% on test set
-  - Visuals: Confusion matrix & classification report saved in notebook outputs
+## 🛡 License
 
-## License  
-  - MIT License – feel free to use for educational purposes (cite NSL-KDD dataset)
+MIT License – Feel free to use for educational purposes.
 
-## References  
-  - NSL-KDD Dataset: https://www.unb.ca/cic/datasets/nsl.html
-  - Kaggle Mirror: https://www.kaggle.com/datasets/hassan06/nslkdd
+## 🔗 References
+
+- **NSL-KDD Dataset**: [University of New Brunswick CIC](https://www.unb.ca/cic/datasets/nsl.html)
+- **Kaggle Link**: [NSL-KDD Dataset](https://www.kaggle.com/datasets/hassan06/nslkdd)
