@@ -10,7 +10,7 @@
 CREATE TABLE protocol_types (
     protocol_id   SERIAL PRIMARY KEY,
     protocol_name VARCHAR NOT NULL UNIQUE
-);
+);  
 
 CREATE TABLE services (
     service_id    SERIAL PRIMARY KEY,
