@@ -553,7 +553,7 @@ FOR EACH ROW
 EXECUTE FUNCTION prevent_negative_duration();
 
 -- Proof: this insert should raise an exception
--- INSERT INTO connections (duration, src_bytes, land, logged_in) VALUES (-10, 100, false, false);
+INSERT INTO connections (duration, src_bytes, land, logged_in) VALUES (-10, 100, false, false);
 
 /*
 Output (when invalid insert attempted):
