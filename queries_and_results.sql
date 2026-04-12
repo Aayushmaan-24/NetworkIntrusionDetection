@@ -704,12 +704,15 @@ NOTICE:  Category: R2L,    Total Outbound Bytes: 306188664
 NOTICE:  Category: U2R,    Total Outbound Bytes: 47124
 */
 
-# Chapter 4 — Normalization
+-- =====================================================================
+-- Chapter 4 — Normalization
+-- =====================================================================
 
-## 4.1 Pitfalls — raw unnormalized table
+-- =====================================================================
+-- 4.1 Pitfalls — raw unnormalized table
+-- =====================================================================
 
-### 4.1.1 Create and populate network_log_raw (UNF)
-```sql
+-- 4.1.1 Create and populate network_log_raw (UNF)
 CREATE TABLE network_log_raw (
     log_id          SERIAL PRIMARY KEY,
     duration        INTEGER,
@@ -734,22 +737,43 @@ VALUES
     (0,  290,  'udp',       'domain',       'SF',  'satan',     'probe',  10,  0);
 
 SELECT * FROM network_log_raw;
-```
 
----
+/*
+Output:
+ log_id | duration | src_bytes | protocols_used | services_used | flag | attack_name | attack_category | dst_host_count | dst_bytes 
+--------+----------+-----------+----------------+---------------+------+-------------+-----------------+----------------+-----------
+      1 |        0 |       491 | tcp, udp       | http, ftp     | SF   | neptune     | dos             |            255 |         0
+      2 |        0 |       146 | tcp            | smtp, http    | S0   | neptune     | dos             |            255 |         0
+      3 |        2 |       232 | udp, icmp      | domain        | SF   | normal      | normal          |             10 |      8153
+      4 |        0 |         0 | tcp            | private, ftp  | REJ  | portsweep   | probe           |            255 |         0
+      5 |        1 |      1032 | tcp            | http          | SF   | normal      | normal          |             20 |      5120
+      6 |        0 |       290 | udp            | domain        | SF   | satan       | probe           |             10 |         0
+(6 rows)
+*/
 
-## 4.2 First Normal Form (1NF)
 
-### 4.2.1 Identify dependency
-```sql
+-- =====================================================================
+-- 4.2 First Normal Form (1NF)
+-- =====================================================================
+
+-- 4.2.1 Identify dependency
 -- Show the multi-valued violation
 SELECT log_id, protocols_used, services_used
 FROM network_log_raw
 WHERE protocols_used LIKE '%,%' OR services_used LIKE '%,%';
-```
 
-### 4.2.2 Apply 1NF — explode multi-valued columns
-```sql
+/*
+Output:
+ log_id | protocols_used | services_used 
+--------+----------------+---------------
+      1 | tcp, udp       | http, ftp
+      2 | tcp            | smtp, http
+      3 | udp, icmp      | domain
+      4 | tcp            | private, ftp
+(4 rows)
+*/
+
+-- 4.2.2 Apply 1NF — explode multi-valued columns
 CREATE TABLE network_log_1nf (
     log_id          INTEGER,
     protocol        VARCHAR(10),
@@ -777,22 +801,57 @@ FROM network_log_raw,
      unnest(string_to_array(services_used,  ',')) AS s(service);
 
 SELECT * FROM network_log_1nf ORDER BY log_id, protocol, service;
-```
 
----
+/*
+Output:
+ log_id | protocol | service | duration | src_bytes | flag | attack_name | attack_category | dst_host_count | dst_bytes 
+--------+----------+---------+----------+-----------+------+-------------+-----------------+----------------+-----------
+      1 | tcp      | ftp     |        0 |       491 | SF   | neptune     | dos             |            255 |         0
+      1 | tcp      | http    |        0 |       491 | SF   | neptune     | dos             |            255 |         0
+      1 | udp      | ftp     |        0 |       491 | SF   | neptune     | dos             |            255 |         0
+      1 | udp      | http    |        0 |       491 | SF   | neptune     | dos             |            255 |         0
+      2 | tcp      | http    |        0 |       146 | S0   | neptune     | dos             |            255 |         0
+      2 | tcp      | smtp    |        0 |       146 | S0   | neptune     | dos             |            255 |         0
+      3 | icmp     | domain  |        2 |       232 | SF   | normal      | normal          |             10 |      8153
+      3 | udp      | domain  |        2 |       232 | SF   | normal      | normal          |             10 |      8153
+      4 | tcp      | ftp     |        0 |         0 | REJ  | portsweep   | probe           |            255 |         0
+      4 | tcp      | private |        0 |         0 | REJ  | portsweep   | probe           |            255 |         0
+      5 | tcp      | http    |        1 |      1032 | SF   | normal      | normal          |             20 |      5120
+      6 | udp      | domain  |        0 |       290 | SF   | satan       | probe           |             10 |         0
+(12 rows)
+*/
 
-## 4.3 Second Normal Form (2NF)
 
-### 4.3.1 Identify dependency
-```sql
+-- =====================================================================
+-- 4.3 Second Normal Form (2NF)
+-- =====================================================================
+
+-- 4.3.1 Identify dependency
 -- Show partial dependency: same log_id has same duration/src_bytes regardless of protocol/service
 SELECT log_id, protocol, service, duration, src_bytes
 FROM network_log_1nf
 ORDER BY log_id;
-```
 
-### 4.3.2 Apply 2NF — separate connection facts from protocol-service mapping
-```sql
+/*
+Output:
+ log_id | protocol | service | duration | src_bytes 
+--------+----------+---------+----------+-----------
+      1 | tcp      | http    |        0 |       491
+      1 | tcp      | ftp     |        0 |       491
+      1 | udp      | http    |        0 |       491
+      1 | udp      | ftp     |        0 |       491
+      2 | tcp      | smtp    |        0 |       146
+      2 | tcp      | http    |        0 |       146
+      3 | udp      | domain  |        2 |       232
+      3 | icmp     | domain  |        2 |       232
+      4 | tcp      | private |        0 |         0
+      4 | tcp      | ftp     |        0 |         0
+      5 | tcp      | http    |        1 |      1032
+      6 | udp      | domain  |        0 |       290
+(12 rows)
+*/
+
+-- 4.3.2 Apply 2NF — separate connection facts from protocol-service mapping
 CREATE TABLE connections_2nf (
     log_id          INTEGER PRIMARY KEY,
     duration        INTEGER,
@@ -821,23 +880,63 @@ SELECT DISTINCT log_id, protocol, service
 FROM network_log_1nf;
 
 SELECT * FROM connections_2nf ORDER BY log_id;
+
+/*
+Output:
+ log_id | duration | src_bytes | flag | attack_name | attack_category | dst_host_count | dst_bytes 
+--------+----------+-----------+------+-------------+-----------------+----------------+-----------
+      1 |        0 |       491 | SF   | neptune     | dos             |            255 |         0
+      2 |        0 |       146 | S0   | neptune     | dos             |            255 |         0
+      3 |        2 |       232 | SF   | normal      | normal          |             10 |      8153
+      4 |        0 |         0 | REJ  | portsweep   | probe           |            255 |         0
+      5 |        1 |      1032 | SF   | normal      | normal          |             20 |      5120
+      6 |        0 |       290 | SF   | satan       | probe           |             10 |         0
+(6 rows)
+*/
 SELECT * FROM conn_proto_service ORDER BY log_id;
-```
 
----
+/*
+Output:
+ log_id | protocol | service 
+--------+----------+---------
+      1 | tcp      | http
+      1 | udp      | http
+      1 | udp      | ftp
+      1 | tcp      | ftp
+      2 | tcp      | http
+      2 | tcp      | smtp
+      3 | udp      | domain
+      3 | icmp     | domain
+      4 | tcp      | private
+      4 | tcp      | ftp
+      5 | tcp      | http
+      6 | udp      | domain
+(12 rows)
+*/
 
-## 4.4 Third Normal Form (3NF)
 
-### 4.4.1 Identify dependency
-```sql
+-- =====================================================================
+-- 4.4 Third Normal Form (3NF)
+-- =====================================================================
+
+-- 4.4.1 Identify dependency
 -- Show transitive dependency: attack_name → attack_category
 SELECT DISTINCT attack_name, attack_category
 FROM connections_2nf
 ORDER BY attack_name;
-```
 
-### 4.4.2 Apply 3NF — extract attack hierarchy
-```sql
+/*
+Output:
+ attack_name | attack_category 
+-------------+-----------------
+ neptune     | dos
+ normal      | normal
+ portsweep   | probe
+ satan       | probe
+(4 rows)
+*/
+
+-- 4.4.2 Apply 3NF — extract attack hierarchy
 CREATE TABLE attacks (
     attack_name     VARCHAR(30) PRIMARY KEY,
     attack_category VARCHAR(20) NOT NULL
@@ -862,23 +961,70 @@ SELECT log_id, duration, src_bytes, flag,
 FROM connections_2nf;
 
 SELECT * FROM attacks;
+
+/*
+Output:
+ attack_name | attack_category 
+-------------+-----------------
+ portsweep   | probe
+ satan       | probe
+ neptune     | dos
+ normal      | normal
+(4 rows)
+*/
 SELECT * FROM connections_3nf ORDER BY log_id;
-```
 
----
+/*
+Output:
+ log_id | duration | src_bytes | flag | attack_name | dst_host_count | dst_bytes 
+--------+----------+-----------+------+-------------+----------------+-----------
+      1 |        0 |       491 | SF   | neptune     |            255 |         0
+      2 |        0 |       146 | S0   | neptune     |            255 |         0
+      3 |        2 |       232 | SF   | normal      |             10 |      8153
+      4 |        0 |         0 | REJ  | portsweep   |            255 |         0
+      5 |        1 |      1032 | SF   | normal      |             20 |      5120
+      6 |        0 |       290 | SF   | satan       |             10 |         0
+(6 rows)
+*/
 
-## 4.5 Boyce-Codd Normal Form (BCNF)
 
-### 4.5.1 Identify dependency
-```sql
+-- =====================================================================
+-- 4.5 Boyce-Codd Normal Form (BCNF)
+-- =====================================================================
+
+-- 4.5.1 Identify dependency
 -- Show string values that are determinants but not superkeys
 SELECT DISTINCT flag FROM connections_3nf;
 SELECT DISTINCT protocol FROM conn_proto_service;
 SELECT DISTINCT service  FROM conn_proto_service;
-```
 
-### 4.5.2 Apply BCNF — surrogate key lookup tables
-```sql
+/*
+Output:
+  flag
+------
+ REJ
+ SF
+ S0
+(3 rows)
+
+ protocol
+----------
+ icmp
+ tcp
+ udp
+(3 rows)
+
+ service
+---------
+ domain
+ smtp
+ ftp
+ http
+ private
+(5 rows)
+*/
+
+-- 4.5.2 Apply BCNF — surrogate key lookup tables
 CREATE TABLE protocol_types (
     protocol_id   SERIAL PRIMARY KEY,
     protocol_name VARCHAR(10) NOT NULL UNIQUE
@@ -925,19 +1071,76 @@ FROM attacks a
 JOIN attack_categories ac ON a.attack_category = ac.category_name;
 
 SELECT * FROM protocol_types;
+
+/*
+Output:
+ protocol_id | protocol_name 
+-------------+---------------
+          13 | tcp
+          14 | udp
+          15 | icmp
+(3 rows)
+*/
 SELECT * FROM services;
+
+/*
+Output:
+ service_id | service_name 
+------------+--------------
+        281 | ftp_data
+        282 | other
+        283 | private
+        284 | http
+        285 | remote_job
+... (total 70 rows)
+*/
 SELECT * FROM flags;
+
+/*
+Output:
+ flag_id | flag_value 
+---------+------------
+      45 | SF
+      46 | S0
+      47 | REJ
+      48 | RSTR
+      49 | SH
+... (total 11 rows)
+*/
 SELECT * FROM attack_categories;
+
+/*
+Output:
+ category_id | category_name 
+-------------+---------------
+          21 | DoS
+          22 | Probe
+          23 | R2L
+          24 | U2R
+          25 | Normal
+(5 rows)
+*/
 SELECT at.attack_id, at.attack_name, ac.category_name
 FROM attack_types at JOIN attack_categories ac ON at.category_id = ac.category_id;
-```
 
----
+/*
+Output:
+ attack_id | attack_name | category_name 
+-----------+-------------+---------------
+        93 | normal      | Normal
+        94 | neptune     | DoS
+        95 | warezclient | R2L
+        96 | ipsweep     | Probe
+        97 | portsweep   | Probe
+... (total 39 rows)
+*/
 
-## 4.6 Fourth Normal Form (4NF)
 
-### 4.6.1 Identify dependency
-```sql
+-- =====================================================================
+-- 4.6 Fourth Normal Form (4NF)
+-- =====================================================================
+
+-- 4.6.1 Identify dependency
 -- Show MVD: one log_id has multiple independent protocols AND services
 SELECT log_id,
        array_agg(DISTINCT protocol) AS protocols,
@@ -945,10 +1148,21 @@ SELECT log_id,
 FROM conn_proto_service
 GROUP BY log_id
 ORDER BY log_id;
-```
 
-### 4.6.2 Apply 4NF — split ternary table into two binary tables
-```sql
+/*
+Output:
+ log_id | protocols  |   services    
+--------+------------+---------------
+      1 | {tcp,udp}  | {ftp,http}
+      2 | {tcp}      | {http,smtp}
+      3 | {icmp,udp} | {domain}
+      4 | {tcp}      | {ftp,private}
+      5 | {tcp}      | {http}
+      6 | {udp}      | {domain}
+(6 rows)
+*/
+
+-- 4.6.2 Apply 4NF — split ternary table into two binary tables
 CREATE TABLE conn_protocols (
     log_id      INTEGER REFERENCES connections_3nf(log_id),
     protocol_id INTEGER REFERENCES protocol_types(protocol_id),
@@ -975,26 +1189,65 @@ SELECT cp.log_id, pt.protocol_name
 FROM conn_protocols cp JOIN protocol_types pt ON cp.protocol_id = pt.protocol_id
 ORDER BY log_id;
 
+/*
+Output:
+ log_id | protocol_name 
+--------+---------------
+      1 | udp
+      1 | tcp
+      2 | tcp
+      3 | udp
+      3 | icmp
+      4 | tcp
+      5 | tcp
+      6 | udp
+(8 rows)
+*/
+
 SELECT cs.log_id, s.service_name
 FROM conn_services cs JOIN services s ON cs.service_id = s.service_id
 ORDER BY log_id;
-```
 
----
+/*
+Output:
+ log_id | service_name 
+--------+--------------
+      1 | ftp
+      1 | http
+      2 | http
+      2 | smtp
+      3 | domain
+      4 | ftp
+      4 | private
+      5 | http
+      6 | domain
+(9 rows)
+*/
 
-## 4.7 Fifth Normal Form (5NF)
 
-### 4.7.1 Identify dependency
-```sql
+-- =====================================================================
+-- 4.7 Fifth Normal Form (5NF)
+-- =====================================================================
+
+-- 4.7.1 Identify dependency
 -- Show repeated destination metric combinations across connections
 SELECT dst_host_count, dst_bytes, COUNT(*) AS occurrences
 FROM connections_3nf
 GROUP BY dst_host_count, dst_bytes
 ORDER BY occurrences DESC;
-```
 
-### 4.7.2 Apply 5NF — extract destination dimension + final connections fact table
-```sql
+/*
+Output:
+ dst_host_count | dst_bytes | occurrences 
+----------------+-----------+-------------
+            255 |         0 |           3
+             10 |      8153 |           1
+             10 |         0 |           1
+             20 |      5120 |           1
+(4 rows)
+*/
+
+-- 4.7.2 Apply 5NF — extract destination dimension + final connections fact table
 CREATE TABLE destination (
     destination_id          SERIAL PRIMARY KEY,
     dst_bytes               BIGINT NOT NULL,
@@ -1056,16 +1309,30 @@ JOIN attack_types      at ON c.attack_id      = at.attack_id
 JOIN attack_categories ac ON at.category_id   = ac.category_id
 JOIN destination       d  ON c.destination_id = d.destination_id
 ORDER BY c.connection_id;
-```
 
----
+/*
+Output (sample):
+ connection_id | duration | src_bytes | flag_value | attack_name | category_name | dst_host_count | dst_bytes 
+---------------+----------+-----------+------------+-------------+---------------+----------------+-----------
+             1 |        0 |       491 | SF         | normal      | Normal        |            150 |         0
+             2 |        0 |       146 | SF         | normal      | Normal        |            255 |         0
+             3 |        0 |         0 | S0         | neptune     | DoS           |            255 |         0
+             4 |        0 |       232 | SF         | normal      | Normal        |             30 |      8153
+             5 |        0 |       199 | SF         | normal      | Normal        |            255 |       420
+             6 |        0 |         0 | REJ        | neptune     | DoS           |            255 |         0
+... (total rows)
+*/
 
-# Chapter 5 — Transactions & Concurrency
 
-## 5.3 Transactions
+-- =====================================================================
+-- Chapter 5 — Transactions & Concurrency
+-- =====================================================================
 
-### 5.3.1 Transaction 1 — Insert a valid normal connection
-```sql
+-- =====================================================================
+-- 5.3 Transactions
+-- =====================================================================
+
+-- 5.3.1 Transaction 1 — Insert a valid normal connection
 BEGIN;
 
 INSERT INTO destination (dst_bytes, dst_host_count, dst_host_srv_count,
@@ -1096,11 +1363,22 @@ SELECT COUNT(*) AS suspicious_entries
 FROM suspicious_audit
 WHERE connection_id = currval('connections_connection_id_seq');
 
-COMMIT;
-```
+/*
+Output:
+ total_connections 
+-------------------
+            125975
+(1 row)
 
-### 5.3.2 Transaction 2 — Insert suspicious connection, verify audit trigger fires
-```sql
+ suspicious_entries 
+--------------------
+                  0
+(1 row)
+*/
+
+COMMIT;
+
+-- 5.3.2 Transaction 2 — Insert suspicious connection, verify audit trigger fires
 BEGIN;
 
 INSERT INTO connections (duration, src_bytes, land, logged_in,
@@ -1121,11 +1399,16 @@ FROM suspicious_audit
 ORDER BY logged_at DESC
 LIMIT 1;
 
-COMMIT;
-```
+/*
+Output:
+ audit_id | connection_id | serror_rate | logged_at 
+----------+---------------+-------------+-----------
+(0 rows)
+*/
 
-### 5.3.3 Transaction 3 — Trigger exception → ROLLBACK TO savepoint → corrected insert
-```sql
+COMMIT;
+
+-- 5.3.3 Transaction 3 — Trigger exception → ROLLBACK TO savepoint → corrected insert
 BEGIN;
 
 INSERT INTO connections (duration, src_bytes, land, logged_in,
@@ -1144,8 +1427,6 @@ VALUES (-5, 300, false, false, 0.0, 0.0, 0.0,
     (SELECT flag_id   FROM flags        WHERE flag_value  = 'REJ'),
     (SELECT attack_id FROM attack_types WHERE attack_name = 'portsweep')
 );
-```
-```sql
 -- After ERROR: Duration cannot be negative: -5
 ROLLBACK TO before_bad_row;
 
@@ -1157,10 +1438,8 @@ VALUES (0, 300, false, false, 0.0, 0.0, 0.0,
 );
 
 COMMIT;
-```
 
-### 5.3.4 Transaction 4 — Reclassify attack type to new category
-```sql
+-- 5.3.4 Transaction 4 — Reclassify attack type to new category
 BEGIN;
 
 INSERT INTO attack_categories (category_name)
@@ -1182,11 +1461,17 @@ FROM attack_types at
 JOIN attack_categories ac ON at.category_id = ac.category_id
 WHERE at.attack_name = 'portsweep';
 
-COMMIT;
-```
+/*
+Output:
+ attack_name | category_name 
+-------------+---------------
+ portsweep   | recon
+(1 row)
+*/
 
-### 5.3.5 Transaction 5 — Constraint violation mid-batch → ROLLBACK TO savepoint
-```sql
+COMMIT;
+
+-- 5.3.5 Transaction 5 — Constraint violation mid-batch → ROLLBACK TO savepoint
 BEGIN;
 
 UPDATE connections
@@ -1206,8 +1491,6 @@ VALUES (0, 200, false, false, 0.7, 0.6, 0.0,
     (SELECT flag_id   FROM flags        WHERE flag_value  = 'S0'),
     (SELECT attack_id FROM attack_types WHERE attack_name = 'neptune')
 );
-```
-```sql
 -- After ERROR: new row violates check constraint "chk_error_rates"
 ROLLBACK TO after_first_update;
 
@@ -1220,38 +1503,52 @@ WHERE connection_id = (
 );
 
 COMMIT;
-```
 
----
 
-## 5.3 Concurrency Control
+-- =====================================================================
+-- 5.3 Concurrency Control
+-- =====================================================================
 
-### 5.3.1 Row-level locking — SELECT FOR UPDATE
-```sql
+-- 5.3.1 Row-level locking — SELECT FOR UPDATE
 BEGIN;
 SELECT connection_id, serror_rate
 FROM connections
 WHERE attack_id = (SELECT attack_id FROM attack_types WHERE attack_name = 'neptune')
 FOR UPDATE;
-COMMIT;
-```
 
-### 5.3.2 Table-level locking — LOCK TABLE
-```sql
+/*
+Output:
+ connection_id | serror_rate 
+---------------+-------------
+             1 |           1
+             2 |           0
+             3 |           1
+... (rows blocked by lock)
+*/
+
+COMMIT;
+
+-- 5.3.2 Table-level locking — LOCK TABLE
 BEGIN;
 LOCK TABLE connection_counter IN EXCLUSIVE MODE;
 UPDATE connection_counter
 SET total_connections = (SELECT COUNT(*) FROM connections);
 COMMIT;
-```
 
-### 5.3.3 Concurrency example — Session 1 (ML pipeline)
-```sql
+-- 5.3.3 Concurrency example — Session 1 (ML pipeline)
 BEGIN;
 
 SELECT attack_id, attack_name FROM attack_types
 WHERE attack_name = 'neptune'
 FOR UPDATE;
+
+/*
+Output:
+ attack_id | attack_name 
+-----------+-------------
+        94 | neptune
+(1 row)
+*/
 
 INSERT INTO connections (duration, src_bytes, land, logged_in,
     serror_rate, rerror_rate, same_srv_rate, flag_id, attack_id)
@@ -1261,22 +1558,37 @@ VALUES (0, 491, false, false, 0.9, 0.0, 0.0,
 );
 
 COMMIT;
-```
 
-### 5.3.4 Concurrency example — Session 2 (analyst — run in second terminal)
-```sql
+-- 5.3.4 Concurrency example — Session 2 (analyst — run in second terminal)
 -- Blocks until Session 1 commits
 BEGIN;
 UPDATE attack_types
 SET attack_name = 'neptune_syn_flood'
 WHERE attack_name = 'neptune';
 COMMIT;
-```
 
-### 5.3.5 Verify final state after both sessions
-```sql
+-- 5.3.5 Verify final state after both sessions
 SELECT attack_id, attack_name, category_id FROM attack_types ORDER BY attack_id;
 SELECT * FROM suspicious_audit ORDER BY logged_at DESC LIMIT 5;
 SELECT * FROM connection_counter;
-```
 
+/*
+Output:
+ attack_id | attack_name | category_id 
+-----------+-------------+-------------
+        93 | normal      |          25
+        94 | neptune     |          21
+        95 | warezclient |          23
+        96 | ipsweep     |          22
+        97 | portsweep   |          29
+... (23 rows)
+
+ audit_id | connection_id | serror_rate | logged_at 
+----------+---------------+-------------+-----------
+(0 rows)
+
+ total_connections 
+-------------------
+            125977
+(1 row)
+*/
