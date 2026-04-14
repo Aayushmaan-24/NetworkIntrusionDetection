@@ -18,7 +18,7 @@ ADD CONSTRAINT chk_error_rates
 CHECK (COALESCE(serror_rate, 0) + COALESCE(rerror_rate, 0) <= 1.0);
 
 -- Proof: select rows that would violate the constraint
-SELECT * FROM connections
+SELECT COUNT(*) AS violating_rows FROM connections
 WHERE COALESCE(serror_rate, 0) + COALESCE(rerror_rate, 0) > 1.0;
 
 /*
@@ -339,13 +339,14 @@ LIMIT 5;
 
 /*
 Output:
- attack_name | category_name | attack_count | avg_serror_rate
+ attack_name | category_name | attack_count | avg_serror_rate 
 -------------+---------------+--------------+-----------------
- normal      | Normal        |        67344 |          0.0134
+ normal      | Normal        |        67346 |          0.0134
  neptune     | DoS           |        41214 |          0.8319
  satan       | Probe         |         3633 |          0.0491
  ipsweep     | Probe         |         3599 |          0.0003
- portsweep   | Probe         |         2931 |          0.0344
+ portsweep   | recon         |         2932 |          0.0344
+(5 rows)
 */
 
 
@@ -422,18 +423,19 @@ LIMIT 10;
 
 /*
 Output:
- service_name | high_risk_count | avg_serror_rate
+ service_name | high_risk_count | avg_serror_rate 
 --------------+-----------------+-----------------
- private      |           21034 |          0.9896
- http         |            9978 |          0.9987
- smtp         |            4936 |          0.9993
- other        |            3856 |          0.9845
- ftp_data     |            2013 |          0.9980
- domain_u     |            1327 |          0.9861
- ftp          |             890 |          0.9972
- telnet       |             759 |          0.9989
- finger       |             739 |          0.9978
- courier      |             536 |          0.9994
+ private      |           18624 |          0.7051
+ http         |            4962 |          0.3186
+ other        |            1574 |          0.1121
+ telnet       |            1548 |          0.8501
+ ftp_data     |            1324 |          0.8867
+ finger       |            1210 |          0.9189
+ Z39_50       |             862 |          0.7843
+ uucp         |             780 |          0.7747
+ auth         |             735 |          0.7730
+ courier      |             734 |          0.8124
+(10 rows)
 */
 
 
@@ -454,13 +456,14 @@ LIMIT 5;
 
 /*
 Output:
- service_name | avg_duration
+ service_name | avg_duration 
 --------------+--------------
- telnet       |      2717.56
- X11          |       888.62
- ftp          |       296.12
- smtp         |       124.42
- IRC          |        82.27
+ IRC          |      5782.19
+ telnet       |      3213.26
+ X11          |       532.33
+ ftp          |       298.63
+ ftp_data     |        71.84
+(5 rows)
 */
 
 
@@ -481,13 +484,15 @@ ORDER BY traffic_count DESC;
 
 /*
 Output:
- flag_value | traffic_count | avg_src_bytes
-------------+---------------+-----------------
- SF         |          3943 |     1023697.71
- S0         |             8 |      352936.25
- RSTO       |             3 |      226274.33
- OTH        |             2 |      288802.50
- REJ        |             1 |      210006.00
+ flag_value | traffic_count | avg_src_bytes 
+------------+---------------+---------------
+ SF         |           497 |    2237884.27
+ S1         |            12 |    1278504.58
+ S3         |             5 |    2378615.00
+ RSTOS0     |             5 |  753607695.40
+ RSTR       |             3 |   12153687.67
+ RSTO       |             2 |  346867159.00
+(6 rows)
 */
 
 
@@ -508,7 +513,7 @@ RETURNS TRIGGER AS $$
 BEGIN
     IF NEW.serror_rate > 0.5 THEN
         INSERT INTO suspicious_audit(connection_id, serror_rate)
-        VALUES (NEW.connection_id, NEW.serror_rate);
+        VALUES (NULL, NEW.serror_rate);
     END IF;
     RETURN NEW;
 END;
@@ -528,9 +533,10 @@ SELECT * FROM suspicious_audit ORDER BY logged_at DESC LIMIT 3;
 
 /*
 Output:
- audit_id | connection_id | serror_rate |          logged_at
+ audit_id | connection_id | serror_rate |         logged_at          
 ----------+---------------+-------------+----------------------------
-        1 |               |         0.9 | 2026-03-14 13:25:08.123456
+        1 |               |         0.9 | 2026-04-14 13:15:58.907988
+(1 row)
 Trigger confirmed: row with serror_rate = 0.9 automatically logged.
 */
 
@@ -621,11 +627,11 @@ END $$;
 
 /*
 Output (sample):
-NOTICE:  Service: auth, Successful Logins: 1424
+NOTICE:  Service: auth, Successful Logins: 152
 NOTICE:  Service: bgp, Successful Logins: 0
-NOTICE:  Service: ftp, Successful Logins: 1010
-NOTICE:  Service: ftp_data, Successful Logins: 5942
-NOTICE:  Service: http, Successful Logins: 13960
+NOTICE:  Service: ftp, Successful Logins: 1188
+NOTICE:  Service: ftp_data, Successful Logins: 3986
+NOTICE:  Service: http, Successful Logins: 36069
 NOTICE:  Service: IRC, Successful Logins: 104
 NOTICE:  Service: other, Successful Logins: 257
 NOTICE:  Service: pop_3, Successful Logins: 187
@@ -697,11 +703,15 @@ END $$;
 
 /*
 Output:
-NOTICE:  Category: DoS,    Total Outbound Bytes: 54024902
-NOTICE:  Category: Normal, Total Outbound Bytes: 884434921
-NOTICE:  Category: Probe,  Total Outbound Bytes: 4495484196
-NOTICE:  Category: R2L,    Total Outbound Bytes: 306188664
-NOTICE:  Category: U2R,    Total Outbound Bytes: 47124
+NOTICE:  Category: dos, Total Outbound Bytes: 0
+NOTICE:  Category: DoS, Total Outbound Bytes: 54024902
+NOTICE:  Category: normal, Total Outbound Bytes: 0
+NOTICE:  Category: Normal, Total Outbound Bytes: 884436921
+NOTICE:  Category: probe, Total Outbound Bytes: 0
+NOTICE:  Category: Probe, Total Outbound Bytes: 105559
+NOTICE:  Category: R2L, Total Outbound Bytes: 306188664
+NOTICE:  Category: recon, Total Outbound Bytes: 4495378937
+NOTICE:  Category: U2R, Total Outbound Bytes: 47124
 */
 
 -- =====================================================================
@@ -875,9 +885,39 @@ SELECT DISTINCT log_id, duration, src_bytes, flag,
     attack_name, attack_category, dst_host_count, dst_bytes
 FROM network_log_1nf;
 
+/*
+ log_id | duration | src_bytes | flag | attack_name | attack_category | dst_host_count | dst_bytes 
+--------+----------+-----------+------+-------------+-----------------+----------------+-----------
+      3 |        2 |       232 | SF   | normal      | normal          |             10 |      8153
+      2 |        0 |       146 | S0   | neptune     | dos             |            255 |         0
+      4 |        0 |         0 | REJ  | portsweep   | probe           |            255 |         0
+      5 |        1 |      1032 | SF   | normal      | normal          |             20 |      5120
+      1 |        0 |       491 | SF   | neptune     | dos             |            255 |         0
+      6 |        0 |       290 | SF   | satan       | probe           |             10 |         0
+(6 rows)
+*/
+
 INSERT INTO conn_proto_service
 SELECT DISTINCT log_id, protocol, service
 FROM network_log_1nf;
+
+/*
+ log_id | protocol | service 
+--------+----------+---------
+      1 | tcp      | ftp
+      1 | udp      | ftp
+      2 | tcp      | smtp
+      3 | icmp     | domain
+      4 | tcp      | ftp
+      6 | udp      | domain
+      4 | tcp      | private
+      5 | tcp      | http
+      1 | udp      | http
+      1 | tcp      | http
+      3 | udp      | domain
+      2 | tcp      | http
+(12 rows)
+*/
 
 SELECT * FROM connections_2nf ORDER BY log_id;
 
@@ -955,10 +995,32 @@ CREATE TABLE connections_3nf (
 INSERT INTO attacks
 SELECT DISTINCT attack_name, attack_category FROM connections_2nf;
 
+/*
+ attack_name | attack_category 
+-------------+-----------------
+ portsweep   | probe
+ satan       | probe
+ neptune     | dos
+ normal      | normal
+(4 rows)
+*/
+
 INSERT INTO connections_3nf
 SELECT log_id, duration, src_bytes, flag,
        attack_name, dst_host_count, dst_bytes
 FROM connections_2nf;
+
+/*
+ log_id | duration | src_bytes | flag | attack_name | dst_host_count | dst_bytes 
+--------+----------+-----------+------+-------------+----------------+-----------
+      3 |        2 |       232 | SF   | normal      |             10 |      8153
+      2 |        0 |       146 | S0   | neptune     |            255 |         0
+      4 |        0 |         0 | REJ  | portsweep   |            255 |         0
+      5 |        1 |      1032 | SF   | normal      |             20 |      5120
+      1 |        0 |       491 | SF   | neptune     |            255 |         0
+      6 |        0 |       290 | SF   | satan       |             10 |         0
+(6 rows)
+*/
 
 SELECT * FROM attacks;
 
@@ -995,8 +1057,6 @@ Output:
 -- 4.5.1 Identify dependency
 -- Show string values that are determinants but not superkeys
 SELECT DISTINCT flag FROM connections_3nf;
-SELECT DISTINCT protocol FROM conn_proto_service;
-SELECT DISTINCT service  FROM conn_proto_service;
 
 /*
 Output:
@@ -1006,14 +1066,20 @@ Output:
  SF
  S0
 (3 rows)
+*/
 
+SELECT DISTINCT protocol FROM conn_proto_service;
+/*
  protocol
 ----------
  icmp
  tcp
  udp
 (3 rows)
+*/
 
+SELECT DISTINCT service  FROM conn_proto_service;
+/*
  service
 ---------
  domain
@@ -1056,19 +1122,65 @@ CREATE TABLE attack_types (
 INSERT INTO protocol_types (protocol_name)
 SELECT DISTINCT protocol FROM conn_proto_service ORDER BY protocol;
 
+/*
+ protocol_id | protocol_name 
+-------------+---------------
+          13 | tcp
+          14 | udp
+          15 | icmp
+(3 rows)
+*/
+
 INSERT INTO services (service_name)
 SELECT DISTINCT service FROM conn_proto_service ORDER BY service;
 
+/*
+ service_id | service_name 
+------------+--------------
+        281 | ftp_data
+        282 | other
+        283 | http
+        284 | private
+        285 | smtp
+(5 rows)
+*/
+
 INSERT INTO flags (flag_value)
 SELECT DISTINCT flag FROM connections_3nf ORDER BY flag;
+/*
+ flag 
+------
+ REJ
+ S0
+ SF
+(3 rows)
+*/
 
 INSERT INTO attack_categories (category_name)
 SELECT DISTINCT attack_category FROM attacks ORDER BY attack_category;
+/*
+ attack_category 
+-----------------
+ dos
+ normal
+ probe
+(3 rows)
+*/
 
 INSERT INTO attack_types (attack_name, category_id)
 SELECT a.attack_name, ac.category_id
 FROM attacks a
 JOIN attack_categories ac ON a.attack_category = ac.category_name;
+
+/*
+ attack_name | category_id 
+-------------+-------------
+ portsweep   |          28
+ satan       |          28
+ neptune     |          26
+ normal      |          27
+(4 rows)
+*/
 
 SELECT * FROM protocol_types;
 
@@ -1180,10 +1292,38 @@ SELECT DISTINCT cps.log_id, pt.protocol_id
 FROM conn_proto_service cps
 JOIN protocol_types pt ON cps.protocol = pt.protocol_name;
 
+/*
+ log_id | protocol_id 
+--------+-------------
+      1 |          13
+      1 |          14
+      2 |          13
+      3 |          14
+      3 |          15
+      4 |          13
+      5 |          13
+      6 |          14
+(8 rows)
+*/
+
 INSERT INTO conn_services (log_id, service_id)
 SELECT DISTINCT cps.log_id, s.service_id
 FROM conn_proto_service cps
 JOIN services s ON cps.service = s.service_name;
+
+/*
+ log_id | service_id 
+--------+------------
+      1 |        281
+      1 |        283
+      2 |        283
+      2 |        285
+      3 |        284
+      4 |        281
+      5 |        283
+      6 |        284
+(8 rows)
+*/
 
 SELECT cp.log_id, pt.protocol_name
 FROM conn_protocols cp JOIN protocol_types pt ON cp.protocol_id = pt.protocol_id
@@ -1286,6 +1426,16 @@ INSERT INTO destination (dst_bytes, dst_host_count)
 SELECT DISTINCT dst_bytes, dst_host_count
 FROM connections_3nf;
 
+/*
+ dst_bytes | dst_host_count 
+-----------+----------------
+         0 |            255
+      5120 |             20
+      8153 |             10
+         0 |             10
+(4 rows)
+*/
+
 INSERT INTO connections (duration, src_bytes, flag_id, attack_id, destination_id)
 SELECT
     c.duration,
@@ -1298,6 +1448,7 @@ JOIN flags        f  ON c.flag        = f.flag_value
 JOIN attack_types at ON c.attack_name = at.attack_name
 JOIN destination  d  ON c.dst_host_count IS NOT DISTINCT FROM d.dst_host_count
                      AND c.dst_bytes     IS NOT DISTINCT FROM d.dst_bytes;
+
 
 -- Verify final joined schema
 SELECT c.connection_id, c.duration, c.src_bytes,
@@ -1569,7 +1720,25 @@ COMMIT;
 
 -- 5.3.5 Verify final state after both sessions
 SELECT attack_id, attack_name, category_id FROM attack_types ORDER BY attack_id;
+/*
+ attack_id | attack_name | category_id 
+-----------+-------------+-------------
+        93 | normal      |          25
+        94 | neptune     |          21
+        95 | warezclient |          23
+        96 | ipsweep     |          22
+        97 | portsweep   |          29
+... (23 rows)
+*/
+
 SELECT * FROM suspicious_audit ORDER BY logged_at DESC LIMIT 5;
+/*
+ audit_id | connection_id | serror_rate |         logged_at          
+----------+---------------+-------------+----------------------------
+        1 |               |         0.9 | 2026-04-14 13:15:58.907988
+(1 row)
+*/
+
 SELECT * FROM connection_counter;
 
 /*
