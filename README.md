@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="https://stock.adobe.com/search?k=cyber+security+logo" alt="Logo">
   <h1>ML-Based Network Intrusion Detection System 🛡️</h1>
   <p><strong>Classify and defend against network intrusions with Machine Learning and PostgreSQL</strong></p>
 
