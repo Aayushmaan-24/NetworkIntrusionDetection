@@ -28,20 +28,32 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import predict, connections, stats, lookup, health
+from routers import predict, connections, stats, lookup, health, realtime
 import ml_service
+from database import engine, Base
+import models
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Pre-load the ML model on startup so the first request isn't slow."""
     try:
+        # Ensure runtime extension tables exist.
+        Base.metadata.create_all(
+            bind=engine,
+            tables=[
+                models.PredictionLog.__table__,
+                models.ConnectionOperatorAction.__table__,
+                models.ConnectionEndpointOverride.__table__,
+                models.ConnectionGeoCache.__table__,
+            ],
+        )
         ml_service.load_model()
-        print("✅  ML model loaded successfully.")
+        print("ML model loaded successfully.")
     except FileNotFoundError as e:
-        print(f"⚠️  Model not found at startup: {e}")
+        print(f"Model not found at startup: {e}")
     yield
-    print("🛑  Shutting down.")
+    print("Shutting down.")
 
 
 app = FastAPI(
@@ -76,6 +88,7 @@ app.include_router(predict.router)
 app.include_router(connections.router)
 app.include_router(stats.router)
 app.include_router(lookup.router)
+app.include_router(realtime.router)
 
 
 @app.get("/", tags=["Root"], summary="API root")
@@ -103,3 +116,4 @@ if __name__ == "__main__":
         reload=True,
         reload_dirs=[os.path.dirname(__file__)],
     )
+

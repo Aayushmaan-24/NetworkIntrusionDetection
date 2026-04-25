@@ -2,12 +2,21 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 from tqdm import tqdm
 import os
+from pathlib import Path
 
-# Database connection settings 
-DATABASE_URL = 'postgresql+psycopg2:///intrusion_db'
+# Database connection settings
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg2://postgres:postgres123@localhost:5432/intrusion_db",
+)
 
-# Dataset file path 
-CSV_PATH = "/home/aayushmaan/IntrusionDetection/ML-Based-Network-Intrusion-Detection-System-/KDDTrain+.txt"
+# Dataset file path
+_default_csv_path = (
+    Path(__file__).resolve().parent
+    / "ML-Based-Network-Intrusion-Detection-System"
+    / "KDDTrain+.txt"
+)
+CSV_PATH = os.getenv("CSV_PATH", str(_default_csv_path))
 
 def populate():
     print("Connecting to database...")
@@ -48,7 +57,31 @@ def populate():
         'dst_bytes', 'dst_host_same_srv_rate', 'dst_host_diff_srv_rate', 'dst_host_serror_rate'
     ]
     
+    if not Path(CSV_PATH).exists():
+        raise FileNotFoundError(
+            f"Dataset file not found at: {CSV_PATH}. "
+            "Set CSV_PATH env var or place KDDTrain+.txt in "
+            "ML-Based-Network-Intrusion-Detection-System/."
+        )
+
     df = pd.read_csv(CSV_PATH, header=None, names=FULL_COLUMN_NAMES, usecols=COLS_TO_LOAD)
+
+    # Some NSL-KDD mirrors have these two host-count fields flipped for a subset of rows.
+    # Normalize them so they satisfy DB constraint: dst_host_count >= dst_host_srv_count.
+    host_count_violation = df["dst_host_count"] < df["dst_host_srv_count"]
+    if host_count_violation.any():
+        count = int(host_count_violation.sum())
+        print(f"Normalizing {count} rows with swapped host-count columns...")
+        left = df.loc[host_count_violation, "dst_host_count"].copy()
+        df.loc[host_count_violation, "dst_host_count"] = df.loc[host_count_violation, "dst_host_srv_count"]
+        df.loc[host_count_violation, "dst_host_srv_count"] = left
+
+    # Handle rare rows where floating rounding in source makes serror+rerror slightly > 1.
+    error_rate_violation = (df["serror_rate"] + df["rerror_rate"]) > 1
+    if error_rate_violation.any():
+        count = int(error_rate_violation.sum())
+        print(f"Normalizing {count} rows with invalid error-rate sums...")
+        df.loc[error_rate_violation, "rerror_rate"] = 1 - df.loc[error_rate_violation, "serror_rate"]
 
     # 2. Populate Lookup Tables
     print("Populating lookup tables...")
