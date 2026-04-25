@@ -185,6 +185,7 @@ CREATE TABLE public.connection_counter (
 --
 
 CREATE TABLE public.connections (
+    connection_id bigserial PRIMARY KEY,
     duration bigint,
     src_bytes bigint,
     land boolean,
