@@ -44,14 +44,16 @@ def dashboard(db: Session = Depends(get_db)):
     # --- totals ---
     total = db.query(func.count(Connection.connection_id)).scalar() or 0
 
-    normal_category_id = (
+    normal_category_ids = (
         db.query(AttackCategory.category_id)
         .filter(func.lower(AttackCategory.category_name) == "normal")
-        .scalar()
+        .all()
     )
+    cat_ids = [r[0] for r in normal_category_ids]
+    
     normal_attack_ids = (
         db.query(AttackType.attack_id)
-        .filter(AttackType.category_id == normal_category_id)
+        .filter(AttackType.category_id.in_(cat_ids))
         .all()
     )
     normal_ids = [r[0] for r in normal_attack_ids]
