@@ -98,36 +98,40 @@ Load schema:
 psql -d intrusion_db -f schema.sql
 ```
 
-### 3. Setup Python environment
+### 3. Setup Backend Environment
+
+We provide a convenient setup script that creates a virtual environment and installs all dependencies:
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-pip install -r backend\requirements.txt
+bash backend/setup.sh
 ```
+
+*(Alternatively, you can manually create a venv and run `pip install -r backend/requirements.txt`)*
 
 ### 4. (Optional) Populate baseline dataset
 
-Only required for fresh/empty databases:
+Only required for fresh/empty databases. Ensure you have the ML dependencies installed (`pip install -r requirements.txt` at the root) and then run:
 
 ```bash
 python populate_db.py
 ```
 
-### 5. Run backend
+### 5. Run Backend
+
+Use the provided run script to automatically activate the environment and start the FastAPI server:
 
 ```bash
 cd backend
-py main.py
+bash run.sh
 ```
 
 Backend docs:
-
 - Swagger: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
-### 6. Run frontend
+### 6. Run Frontend
+
+In a separate terminal, install the Node dependencies and start the Vite dev server:
 
 ```bash
 cd frontend
@@ -136,7 +140,6 @@ npm run dev
 ```
 
 Frontend app:
-
 - `http://localhost:5173`
 
 ---
