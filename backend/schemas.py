@@ -65,6 +65,20 @@ class PredictResponse(BaseModel):
     probabilities: dict[str, float]  # {"Normal": x, "Intrusion": y}
 
 
+class PredictLogOut(BaseModel):
+    prediction_id: int
+    created_at: str
+    protocol_type: str
+    service: str
+    flag: str
+    src_bytes: int
+    dst_bytes: int
+    prediction: str
+    confidence: float
+    intrusion_probability: float
+    normal_probability: float
+
+
 # ---------------------------------------------------------------------------
 # Connections (paginated listing)
 # ---------------------------------------------------------------------------
@@ -87,6 +101,15 @@ class ConnectionOut(BaseModel):
     flag: Optional[str]
     attack_name: Optional[str]
     attack_category: Optional[str]
+    source_ip: Optional[str] = None
+    destination_ip: Optional[str] = None
+    region_city: Optional[str] = None
+    region_country: Optional[str] = None
+    region_lat: Optional[float] = None
+    region_lng: Optional[float] = None
+    region_source: Optional[str] = None
+    geo_precise: Optional[bool] = None
+    anomaly_score: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -96,6 +119,71 @@ class PaginatedConnections(BaseModel):
     page: int
     page_size: int
     results: list[ConnectionOut]
+
+
+class GeoCitySummary(BaseModel):
+    city: str
+    country: str
+    lat: float
+    lng: float
+    count: int
+    avg_anomaly: float
+
+
+class GeoSummaryResponse(BaseModel):
+    total_connections: int
+    high_risk_ratio: float
+    city_breakdown: list[GeoCitySummary]
+
+
+class ConnectionActionRequest(BaseModel):
+    action: str = Field(..., description="One of: block, quarantine, ignore")
+    note: Optional[str] = Field(default=None, description="Optional operator note")
+    operator: str = Field(default="analyst", description="Operator display name")
+
+
+class ConnectionActionOut(BaseModel):
+    action_id: int
+    connection_id: int
+    action: str
+    note: Optional[str]
+    operator: str
+    created_at: str
+
+
+class ConnectionEndpointOverrideRequest(BaseModel):
+    source_ip: Optional[str] = Field(default=None, description="Real source IPv4/IPv6 for this connection")
+    destination_ip: Optional[str] = Field(default=None, description="Real destination IPv4/IPv6 for this connection")
+
+
+class ConnectionEndpointOverrideOut(BaseModel):
+    connection_id: int
+    source_ip: Optional[str]
+    destination_ip: Optional[str]
+    updated_at: str
+
+
+class GeoEnrichRequest(BaseModel):
+    limit: int = Field(default=500, ge=1, le=5000, description="Max rows to enrich in one run")
+    force: bool = Field(default=False, description="When true, refresh rows that are already cached")
+
+
+class GeoEnrichResponse(BaseModel):
+    attempted: int
+    updated: int
+    skipped: int
+    failed: int
+    imported_endpoints: int = 0
+
+
+class EndpointBootstrapRequest(BaseModel):
+    limit: int = Field(default=2000, ge=1, le=20000, description="Max endpoint rows to import")
+    force: bool = Field(default=False, description="When true, overwrite existing endpoint override rows")
+
+
+class EndpointBootstrapResponse(BaseModel):
+    imported: int
+    scanned_tables: int
 
 
 # ---------------------------------------------------------------------------
@@ -128,11 +216,27 @@ class FlagStatsItem(BaseModel):
     count: int
 
 
+class DashboardActivityItem(BaseModel):
+    event_type: str
+    title: str
+    detail: str
+    created_at: str
+
+
 class DashboardStats(BaseModel):
     total_connections: int
     total_attacks: int
     total_normal: int
     attack_rate: float
+    high_risk_connections: int
+    avg_anomaly_score: float
+    recent_predictions_1h: int
+    recent_predictions_24h: int
+    recent_actions_1h: int
+    recent_actions_24h: int
+    latest_prediction: Optional[str] = None
+    latest_action: Optional[str] = None
+    activity_feed: list[DashboardActivityItem]
     attack_categories: list[AttackCategoryItem]
     top_attack_types: list[AttackDistributionItem]
     protocol_distribution: list[ProtocolStatsItem]

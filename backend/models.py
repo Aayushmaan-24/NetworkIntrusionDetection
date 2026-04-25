@@ -3,9 +3,10 @@ SQLAlchemy ORM models mirroring the intrusion_db schema.
 """
 from sqlalchemy import (
     BigInteger, Boolean, Column, Float, ForeignKey,
-    Integer, SmallInteger, String,
+    Integer, SmallInteger, String, DateTime, Text,
 )
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from database import Base
 
 
@@ -96,3 +97,66 @@ class Connection(Base):
     flag = relationship("Flag", back_populates="connections")
     attack = relationship("AttackType", back_populates="connections")
     destination = relationship("Destination", back_populates="connections")
+    actions = relationship("ConnectionOperatorAction", back_populates="connection")
+    endpoint_override = relationship("ConnectionEndpointOverride", back_populates="connection", uselist=False)
+    geo_cache = relationship("ConnectionGeoCache", back_populates="connection", uselist=False)
+
+
+class PredictionLog(Base):
+    __tablename__ = "prediction_logs"
+
+    prediction_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    protocol_type = Column(String, nullable=False)
+    service = Column(String, nullable=False)
+    flag = Column(String, nullable=False)
+    src_bytes = Column(BigInteger, nullable=False)
+    dst_bytes = Column(BigInteger, nullable=False)
+    prediction = Column(String, nullable=False)
+    confidence = Column(Float, nullable=False)
+    intrusion_probability = Column(Float, nullable=False, default=0.0)
+    normal_probability = Column(Float, nullable=False, default=0.0)
+
+
+class ConnectionOperatorAction(Base):
+    __tablename__ = "connection_operator_actions"
+
+    action_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    connection_id = Column(BigInteger, ForeignKey("connections.connection_id"), nullable=False, index=True)
+    action = Column(String, nullable=False)
+    note = Column(Text, nullable=True)
+    operator = Column(String, nullable=False, default="analyst")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    connection = relationship("Connection", back_populates="actions")
+
+
+class ConnectionEndpointOverride(Base):
+    __tablename__ = "connection_endpoint_overrides"
+
+    override_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    connection_id = Column(BigInteger, ForeignKey("connections.connection_id"), nullable=False, unique=True, index=True)
+    source_ip = Column(String, nullable=True)
+    destination_ip = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    connection = relationship("Connection", back_populates="endpoint_override")
+
+
+class ConnectionGeoCache(Base):
+    __tablename__ = "connection_geo_cache"
+
+    geo_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    connection_id = Column(BigInteger, ForeignKey("connections.connection_id"), nullable=False, unique=True, index=True)
+    target_ip = Column(String, nullable=True)
+    city = Column(String, nullable=True)
+    country = Column(String, nullable=True)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
+    provider = Column(String, nullable=True)
+    is_precise = Column(Boolean, nullable=False, default=False)
+    resolved_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    connection = relationship("Connection", back_populates="geo_cache")

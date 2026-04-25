@@ -5,11 +5,22 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
+from datetime import datetime, timedelta, timezone
 
 from database import get_db
-from models import Connection, AttackType, AttackCategory, ProtocolType, Service, Flag
+from models import (
+    Connection,
+    AttackType,
+    AttackCategory,
+    ProtocolType,
+    Service,
+    Flag,
+    PredictionLog,
+    ConnectionOperatorAction,
+)
 from schemas import (
     DashboardStats,
+    DashboardActivityItem,
     AttackDistributionItem,
     AttackCategoryItem,
     ProtocolStatsItem,
@@ -53,6 +64,37 @@ def dashboard(db: Session = Depends(get_db)):
     )
     total_attacks = total - total_normal
     attack_rate = round(total_attacks / total * 100, 2) if total else 0.0
+
+    category_lower = func.lower(AttackCategory.category_name)
+    category_boost = case(
+        (category_lower == "dos", 24.0),
+        (category_lower == "u2r", 28.0),
+        (category_lower == "probe", 14.0),
+        (category_lower == "normal", -18.0),
+        else_=6.0,
+    )
+
+    anomaly_expr = (
+        0.32 * (func.coalesce(Connection.serror_rate, 0.0) * 100.0)
+        + 0.24 * (func.coalesce(Connection.rerror_rate, 0.0) * 100.0)
+        + 0.21 * func.least((func.coalesce(Connection.src_bytes, 0.0) / 1500.0), 100.0)
+        + 0.15 * func.least(((func.coalesce(Connection.count, 0.0) + func.coalesce(Connection.srv_count, 0.0)) / 2.2), 100.0)
+        + 0.08 * (func.coalesce(Connection.same_srv_rate, 0.0) * 100.0)
+        + category_boost
+    )
+
+    risk_rows = (
+        db.query(
+            func.count(Connection.connection_id).label("total"),
+            func.avg(anomaly_expr).label("avg_anomaly"),
+            func.sum(case((anomaly_expr >= 70.0, 1), else_=0)).label("high_risk"),
+        )
+        .outerjoin(AttackType, Connection.attack_id == AttackType.attack_id)
+        .outerjoin(AttackCategory, AttackType.category_id == AttackCategory.category_id)
+        .first()
+    )
+    high_risk_connections = int((risk_rows[2] or 0) if risk_rows else 0)
+    avg_anomaly_score = float(round((risk_rows[1] or 0.0), 2) if risk_rows else 0.0)
 
     # --- attack category breakdown ---
     cat_rows = (
@@ -119,11 +161,97 @@ def dashboard(db: Session = Depends(get_db)):
     )
     flag_distribution = [FlagStatsItem(flag=r[0], count=r[1]) for r in flag_rows]
 
+    now_utc = datetime.now(timezone.utc)
+    last_hour = now_utc - timedelta(hours=1)
+    last_day = now_utc - timedelta(hours=24)
+
+    recent_predictions_1h = (
+        db.query(func.count(PredictionLog.prediction_id))
+        .filter(PredictionLog.created_at >= last_hour)
+        .scalar()
+        or 0
+    )
+    recent_predictions_24h = (
+        db.query(func.count(PredictionLog.prediction_id))
+        .filter(PredictionLog.created_at >= last_day)
+        .scalar()
+        or 0
+    )
+    recent_actions_1h = (
+        db.query(func.count(ConnectionOperatorAction.action_id))
+        .filter(ConnectionOperatorAction.created_at >= last_hour)
+        .scalar()
+        or 0
+    )
+    recent_actions_24h = (
+        db.query(func.count(ConnectionOperatorAction.action_id))
+        .filter(ConnectionOperatorAction.created_at >= last_day)
+        .scalar()
+        or 0
+    )
+
+    latest_prediction_row = (
+        db.query(PredictionLog)
+        .order_by(PredictionLog.created_at.desc())
+        .first()
+    )
+    latest_action_row = (
+        db.query(ConnectionOperatorAction)
+        .order_by(ConnectionOperatorAction.created_at.desc())
+        .first()
+    )
+
+    feed_predictions = (
+        db.query(PredictionLog)
+        .order_by(PredictionLog.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    feed_actions = (
+        db.query(ConnectionOperatorAction)
+        .order_by(ConnectionOperatorAction.created_at.desc())
+        .limit(8)
+        .all()
+    )
+
+    activity_feed: list[DashboardActivityItem] = []
+    for row in feed_predictions:
+        timestamp = row.created_at.isoformat() if row.created_at else ""
+        activity_feed.append(
+            DashboardActivityItem(
+                event_type="prediction",
+                title=f"Prediction: {row.prediction}",
+                detail=f"{row.protocol_type.upper()} / {row.service} / confidence {round(float(row.confidence) * 100, 1)}%",
+                created_at=timestamp,
+            )
+        )
+    for row in feed_actions:
+        timestamp = row.created_at.isoformat() if row.created_at else ""
+        activity_feed.append(
+            DashboardActivityItem(
+                event_type="action",
+                title=f"Operator action: {row.action}",
+                detail=f"Conn #{row.connection_id} by {row.operator}",
+                created_at=timestamp,
+            )
+        )
+    activity_feed.sort(key=lambda item: item.created_at, reverse=True)
+    activity_feed = activity_feed[:10]
+
     return DashboardStats(
         total_connections=total,
         total_attacks=total_attacks,
         total_normal=total_normal,
         attack_rate=attack_rate,
+        high_risk_connections=high_risk_connections,
+        avg_anomaly_score=avg_anomaly_score,
+        recent_predictions_1h=recent_predictions_1h,
+        recent_predictions_24h=recent_predictions_24h,
+        recent_actions_1h=recent_actions_1h,
+        recent_actions_24h=recent_actions_24h,
+        latest_prediction=latest_prediction_row.prediction if latest_prediction_row else None,
+        latest_action=latest_action_row.action if latest_action_row else None,
+        activity_feed=activity_feed,
         attack_categories=attack_categories,
         top_attack_types=top_attack_types,
         protocol_distribution=protocol_distribution,
