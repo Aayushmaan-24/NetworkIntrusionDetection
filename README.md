@@ -23,7 +23,7 @@ This project implements a highly scalable **machine learning-based network intru
 
 It is designed to classify network connections as either **`Normal`** or **`Intrusion`** with high precision, robust generalization, and prevent data leakage, making it an enterprise-grade prototype for real-world network security monitoring.
 
-<img src="/home/aayushmaan/IntrusionDetection/ArchitectureDiagram.png" width="100%" alt="Architecture Diagram">
+<img src="./ArchitectureDiagram.png" width="100%" alt="Architecture Diagram">
 
 ## 🚀 Key Features
 
